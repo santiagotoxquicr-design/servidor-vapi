@@ -1,0 +1,109 @@
+{
+  "_instrucciones": "Cada objeto de 'tools' se crea por separado (Dashboard > Tools > Create Tool, o POST https://api.vapi.ai/tool). Reemplaza TU-APP y TU_VAPI_SECRET. 'analysisPlan' va en el asistente (PATCH https://api.vapi.ai/assistant/{id}) o en Assistant > Analysis.",
+  "tools": [
+    {
+      "type": "function",
+      "async": false,
+      "function": {
+        "name": "consultar_disponibilidad",
+        "description": "Consulta los horarios libres del calendario para una fecha. Úsala SIEMPRE antes de agendar para ofrecer horarios reales al cliente.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "fecha": {
+              "type": "string",
+              "description": "Fecha a consultar en formato AAAA-MM-DD, por ejemplo 2026-11-10. Calcula la fecha exacta a partir de la fecha actual si el cliente dice 'mañana' o 'el lunes'."
+            },
+            "duracion_minutos": {
+              "type": "integer",
+              "description": "Duración de la cita en minutos. Opcional; por defecto 30."
+            }
+          },
+          "required": ["fecha"]
+        }
+      },
+      "messages": [
+        { "type": "request-start", "content": "Déjame revisar la agenda un momento." },
+        { "type": "request-failed", "content": "Lo siento, no pude consultar la agenda en este momento." }
+      ],
+      "server": {
+        "url": "https://TU-APP.onrender.com/vapi/tools",
+        "secret": "TU_VAPI_SECRET",
+        "timeoutSeconds": 20
+      }
+    },
+    {
+      "type": "function",
+      "async": false,
+      "function": {
+        "name": "agendar_cita",
+        "description": "Agenda una cita en el calendario. Úsala SOLO cuando el cliente haya confirmado nombre, teléfono, fecha y hora, y el horario haya salido disponible en consultar_disponibilidad.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "nombre": {
+              "type": "string",
+              "description": "Nombre completo del cliente."
+            },
+            "telefono": {
+              "type": "string",
+              "description": "Teléfono del cliente con lada, por ejemplo +5212221234567. Si el cliente no lo dicta, se usa el número desde el que llama."
+            },
+            "fecha_hora": {
+              "type": "string",
+              "description": "Inicio de la cita en ISO 8601, hora local y sin zona horaria, por ejemplo 2026-11-10T15:00:00."
+            },
+            "duracion_minutos": {
+              "type": "integer",
+              "description": "Duración en minutos. Opcional; por defecto 30."
+            },
+            "motivo": {
+              "type": "string",
+              "description": "Motivo o servicio de la cita. Opcional."
+            }
+          },
+          "required": ["nombre", "telefono", "fecha_hora"]
+        }
+      },
+      "messages": [
+        { "type": "request-start", "content": "Perfecto, estoy agendando tu cita." },
+        { "type": "request-failed", "content": "Lo siento, hubo un problema al agendar tu cita." }
+      ],
+      "server": {
+        "url": "https://TU-APP.onrender.com/vapi/tools",
+        "secret": "TU_VAPI_SECRET",
+        "timeoutSeconds": 20
+      }
+    }
+  ],
+  "assistant_post_call": {
+    "server": {
+      "url": "https://TU-APP.onrender.com/vapi/post-call",
+      "secret": "TU_VAPI_SECRET"
+    },
+    "serverMessages": ["end-of-call-report"],
+    "analysisPlan": {
+      "summaryPlan": { "enabled": true },
+      "structuredDataPlan": {
+        "enabled": true,
+        "timeoutSeconds": 30,
+        "messages": [
+          {
+            "role": "system",
+            "content": "Extrae los datos del cliente a partir de la transcripción. Si un dato no se mencionó, devuélvelo como cadena vacía. 'fecha_agendada' va en formato ISO 8601 (AAAA-MM-DDTHH:MM) y solo si la cita quedó confirmada."
+          },
+          { "role": "user", "content": "Transcripción:\n\n{{transcript}}\n\nResumen:\n\n{{summary}}" }
+        ],
+        "schema": {
+          "type": "object",
+          "properties": {
+            "nombre": { "type": "string", "description": "Nombre del cliente" },
+            "telefono": { "type": "string", "description": "Teléfono del cliente" },
+            "fecha_agendada": { "type": "string", "description": "Fecha y hora de la cita confirmada en ISO 8601, o vacío" }
+          },
+          "required": ["nombre", "telefono", "fecha_agendada"]
+        }
+      }
+    }
+  }
+}
